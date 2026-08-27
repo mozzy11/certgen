@@ -5,6 +5,10 @@ on:
     branches: [ 'main' ]
   release:
     types: [ 'published' ]
+  # Rebuild monthly so the 365-day self-signed cert in the published image is
+  # always renewed long before it expires.
+  schedule:
+    - cron: '0 3 1 * *'
   workflow_dispatch:
 
 env:
@@ -53,6 +57,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_NAME }}
+          # Branch name (e.g. `main`) and release tags only. Listed explicitly so
+          # the scheduled rebuild also publishes `main` (default tag rules would
+          # add a `nightly` tag for schedule events).
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
 
       - name: Build Docker image
         id: build
@@ -63,6 +73,10 @@ jobs:
           # push: true
           # tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Unique per run: forces the cert-generation layers in the Dockerfile
+          # to be rebuilt rather than restored from the registry build cache.
+          build-args: |
+            CACHEBUST=${{ github.run_id }}
           cache-from: type=registry,ref=${{ env.DOCKER_NAME }}:${{ matrix.platform }}-buildcache
           cache-to: type=registry,ref=${{ env.DOCKER_NAME }}:${{ matrix.platform }}-buildcache,mode=max
           outputs: type=image,name=${{ env.DOCKER_NAME }},push-by-digest=true,name-canonical=true,push=true
@@ -100,6 +114,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_NAME }}
+          # Branch name (e.g. `main`) and release tags only. Listed explicitly so
+          # the scheduled rebuild also publishes `main` (default tag rules would
+          # add a `nightly` tag for schedule events).
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
