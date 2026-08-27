@@ -20,8 +20,16 @@ RUN apt-get update && apt-get upgrade -y && \
 # Certificates
 #
 
+# CACHEBUST is set by CI to a per-run value (github.run_id). A changed ARG value
+# invalidates BuildKit's layer cache for every instruction below it, so the
+# certificate is regenerated on each build instead of being replayed from the
+# registry build cache (which kept republishing the original, eventually
+# expired, certificate). The heavy apt layer above stays cached.
+ARG CACHEBUST=0
+
 # Self-signed Certs
-RUN openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/apache-selfsigned.key -out /etc/ssl/certs/apache-selfsigned.crt \ 
+RUN echo "cachebust=${CACHEBUST}" && \
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/apache-selfsigned.key -out /etc/ssl/certs/apache-selfsigned.crt \
     -subj "/C=US/ST=WA/L=Seattle/O=I-TECH-UW/OU=DIGI/CN=localhost" \
     -addext "subjectAltName=DNS:*.openelis.org,DNS:*.openelis-global.org"
 
